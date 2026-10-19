@@ -1,0 +1,100 @@
+generator client {
+    provider = "prisma-client-js"
+    output   = "../generated/prisma/client"
+}
+
+datasource db {
+    provider = "mysql"
+}
+
+model User {
+    id                String             @id @default(cuid())
+    email             String             @unique
+    username          String             @unique
+    password          String
+    createdAt         DateTime           @default(now())
+    updatedAt         DateTime           @updatedAt
+    userConversations UserConversation[]
+    messages          Message[]
+    chatbotMessages   ChatbotMessage[]
+    agentMessages     AgentMessage[]
+    refreshTokens     RefreshToken[]
+
+    @@map("users")
+}
+
+enum ConversationType {
+    dm
+    group
+}
+
+model Conversation {
+    id                String             @id @default(cuid())
+    type              ConversationType   @default(dm)
+    createdAt         DateTime           @default(now())
+    updatedAt         DateTime           @updatedAt
+    userConversations UserConversation[]
+    messages          Message[]
+    name              String?
+    dmKey             String?            @unique
+    lastMessageAt     DateTime           @default(now())
+
+    @@map("conversations")
+}
+
+model UserConversation {
+    conversationId String
+    userId         String
+    conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+    user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@id([conversationId, userId])
+    @@map("user_conversation")
+}
+
+model Message {
+    id             String       @id @default(cuid())
+    conversationId String
+    senderId       String
+    content        String       @db.Text
+    createdAt      DateTime     @default(now())
+    conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+    sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+    @@map("messages")
+}
+
+model ChatbotMessage {
+    id        String   @id @default(cuid())
+    userId    String
+    role      String
+    content   String   @db.Text
+    createdAt DateTime @default(now())
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@map("chatbot_messages")
+}
+
+model AgentMessage {
+    id        String   @id @default(cuid())
+    userId    String
+    role      String
+    thinking  Boolean  @default(false)
+    content   String   @db.Text
+    createdAt DateTime @default(now())
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@map("agent_messages")
+}
+
+model RefreshToken {
+    id        String   @id @default(cuid())
+    tokenHash String   @unique
+    userId    String
+    expiresAt DateTime
+    createdAt DateTime @default(now())
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+    @@map("refresh_tokens")
+}
