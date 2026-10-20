@@ -4,7 +4,9 @@ const HttpError = require("../utils/httpError");
 
 const MAX_CONTENT = 2000;
 const memberInclude = {
-  members: { include: { user: { select: { id: true, username: true } } } },
+  userConversations: {
+    include: { user: { select: { id: true, username: true } } },
+  },
 };
 
 const toConversation = (c) => ({
@@ -12,12 +14,12 @@ const toConversation = (c) => ({
   type: c.type,
   name: c.name,
   lastMessageAt: c.lastMessageAt,
-  members: c.members.map((m) => m.user),
+  members: c.userConversations.map((m) => m.user),
 });
 
 class ConversationsService {
   async assertMember(userId, conversationId) {
-    const m = await prisma.conversationMember.findUnique({
+    const m = await prisma.userConversation.findUnique({
       where: { conversationId_userId: { conversationId, userId } },
     });
     if (!m) throw new HttpError(404, "Không tìm thấy cuộc hội thoại");
@@ -25,7 +27,7 @@ class ConversationsService {
 
   async list(userId) {
     const rows = await prisma.conversation.findMany({
-      where: { members: { some: { userId } } },
+      where: { userConversations: { some: { userId } } },
       include: memberInclude,
       orderBy: { lastMessageAt: "desc" },
     });
@@ -57,7 +59,7 @@ class ConversationsService {
       data: {
         type: "dm",
         dmKey,
-        members: { create: [{ userId }, { userId: otherId }] },
+        userConversations: { create: [{ userId }, { userId: otherId }] },
       },
       include: memberInclude,
     });
@@ -79,7 +81,7 @@ class ConversationsService {
       data: {
         type: "group",
         name,
-        members: { create: ids.map((id) => ({ userId: id })) },
+        userConversations: { create: ids.map((id) => ({ userId: id })) },
       },
       include: memberInclude,
     });

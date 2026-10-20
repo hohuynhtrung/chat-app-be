@@ -2,3 +2,7 @@
 .env
 
 /generated/prisma
+
+# test
+/test-db.js
+/test-prisma.js
