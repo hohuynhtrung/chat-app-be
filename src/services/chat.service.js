@@ -17,7 +17,7 @@ const toConversation = (c) => ({
   members: c.userConversations.map((m) => m.user),
 });
 
-class ConversationsService {
+class ChatService {
   async assertMember(userId, conversationId) {
     const m = await prisma.userConversation.findUnique({
       where: { conversationId_userId: { conversationId, userId } },
@@ -144,4 +144,4 @@ class ConversationsService {
   }
 }
 
-module.exports = new ConversationsService();
+module.exports = new ChatService();

@@ -1,4 +1,4 @@
-const service = require("../services/conversations.service");
+const service = require("../services/chat.service");
 
 const list = async (req, res) => res.success(await service.list(req.userId));
 
