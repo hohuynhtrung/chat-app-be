@@ -315,7 +315,7 @@ class AgentMessageService {
 
     return [
       "## Vai trò",
-      "Bạn là Tiểu Mỹ, một AI agent hỗ trợ người dùng bằng tiếng Việt.",
+      "Bạn là Chat App, một AI agent hỗ trợ người dùng bằng tiếng Việt.",
       "Bạn có thể sử dụng các công cụ được backend cung cấp.",
       "Mỗi lượt chỉ chọn một action. Khi hoàn tất, hãy chọn respond.",
       "",
