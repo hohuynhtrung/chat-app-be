@@ -76,7 +76,10 @@ class AuthService {
       if (record) await prisma.refreshToken.delete({ where: { tokenHash } });
       throw new HttpError(401, "Refresh token không hợp lệ hoặc đã hết hạn");
     }
-    await prisma.refreshToken.delete({ where: { tokenHash } }); // xoay vòng
+    const { count } = await prisma.refreshToken.deleteMany({
+      where: { tokenHash },
+    });
+    if (count === 0) throw new HttpError(401, "Refresh token đã được sử dụng");
     return this.issueTokens(record.user);
   }
 
