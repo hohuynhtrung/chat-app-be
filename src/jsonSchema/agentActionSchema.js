@@ -8,7 +8,7 @@ const agentActionSchema = {
       properties: {
         action: {
           type: "string",
-          enum: ["readFile", "writeFile", "exec", "searchWeb", "respond"],
+          enum: ["readFile", "writeFile", "exec", "search_web", "respond"],
           description:
             "Action duy nhất agent sẽ thực hiện trong lượt hiện tại.",
         },
@@ -29,7 +29,7 @@ const agentActionSchema = {
             },
             query: {
               type: ["string", "null"],
-              description: "Truy vấn tìm kiếm khi dùng action searchWeb.",
+              description: "Từ khóa tìm kiếm khi dùng action search_web.",
             },
             message: {
               type: ["string", "null"],

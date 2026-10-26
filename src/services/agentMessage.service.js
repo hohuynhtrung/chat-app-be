@@ -1,10 +1,12 @@
+const { randomUUID } = require("node:crypto");
 const prisma = require("../libs/prisma");
 const aiService = require("./ai.service");
 const agentActionSchema = require("../jsonSchema/agentActionSchema");
 const agentTools = require("../utils/agentTools");
 const { getOsInfo } = require("../utils/osInfo");
+const pusher = require("../libs/pusher");
 
-const AGENT_MODEL = "nvidia/nemotron-3.5-lightning-free";
+const AGENT_MODEL = "alibaba/qwen3.8-omni-flash";
 const CHAT_HISTORY_LIMIT = 20;
 const MAX_AGENT_STEPS = 30;
 
@@ -20,7 +22,7 @@ const ALLOWED_ACTIONS = new Set([
   "readFile",
   "writeFile",
   "exec",
-  "searchWeb",
+  "search_web",
   "respond",
 ]);
 
@@ -149,7 +151,7 @@ class AgentMessageService {
    * 3. Lặp qua các action.
    * 4. Lưu và trả về câu trả lời cuối cùng.
    */
-  async chat(user, input) {
+  async chat(user, input, requestId) {
     if (!user?.id) {
       throw new Error("Không xác định được người dùng.");
     }
@@ -159,6 +161,10 @@ class AgentMessageService {
     }
 
     const normalizedInput = input.trim();
+    const eventRequestId =
+      typeof requestId === "string" && requestId.trim().length <= 128
+        ? requestId.trim() || randomUUID()
+        : randomUUID();
 
     const context = [
       {
@@ -180,17 +186,26 @@ class AgentMessageService {
     for (let step = 1; step <= MAX_AGENT_STEPS; step += 1) {
       const { action, params } = await this._think(context);
 
-      // Chỉ dùng thông tin ngắn về bước xử lý, không hiển thị ra giao diện.
       if (params.thinking) {
         await this._insertMessage(user.id, {
           role: "assistant",
           content: params.thinking,
           thinking: true,
         });
+
+        await this._publishAgentEvent(user.id, "agent:thinking", {
+          requestId: eventRequestId,
+          step,
+          thinking: params.thinking,
+        });
       }
 
       if (action === "respond") {
         const answer = params.message.trim();
+
+        await this._publishAgentEvent(user.id, "agent:complete", {
+          requestId: eventRequestId,
+        });
 
         return this._insertMessage(user.id, {
           role: "assistant",
@@ -216,11 +231,23 @@ class AgentMessageService {
       });
     }
 
+    await this._publishAgentEvent(user.id, "agent:complete", {
+      requestId: eventRequestId,
+    });
+
     return this._insertMessage(user.id, {
       role: "assistant",
       content: MAX_STEPS_EXCEEDED_MESSAGE,
       thinking: false,
     });
+  }
+
+  async _publishAgentEvent(userId, eventName, payload) {
+    try {
+      await pusher.trigger(`agent-${userId}`, eventName, payload);
+    } catch (error) {
+      console.error(`Pusher event "${eventName}" failed:`, error.message);
+    }
   }
 
   /**
@@ -336,7 +363,10 @@ class AgentMessageService {
       "- readFile: đọc file; path là đường dẫn file.",
       "- writeFile: ghi file; path là đường dẫn và content là nội dung cần ghi.",
       "- exec: chạy lệnh ngắn phù hợp với hệ điều hành.",
-      "- searchWeb: backend hiện chưa hỗ trợ; không chọn action này.",
+      "- search_web: tìm thông tin trên internet; query là từ khóa tìm kiếm.",
+      "- Dùng search_web khi người dùng hỏi tin thời sự, thông tin mới/có thể thay đổi, hoặc nội dung ngoài kiến thức sẵn có.",
+      "- Sau khi tìm kiếm, tổng hợp câu trả lời từ kết quả; ưu tiên nguồn đáng tin cậy và đưa URL nguồn khi phù hợp.",
+      "- Nếu tìm kiếm không có kết quả hoặc công cụ báo lỗi, hãy nói rõ giới hạn đó, không tự bịa thông tin.",
       "",
       "## An toàn",
       "- Không tự ý thực hiện thao tác xóa dữ liệu hoặc ghi đè hàng loạt.",

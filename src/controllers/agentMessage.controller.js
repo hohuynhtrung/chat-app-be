@@ -15,7 +15,11 @@ const chat = async (req, res, next) => {
       return res.error(`Nội dung tối đa ${MAX_INPUT_LENGTH} ký tự`, 400);
     }
 
-    const result = await agentMessageService.chat(req.user, input);
+    const result = await agentMessageService.chat(
+      req.user,
+      input,
+      req.body?.requestId,
+    );
 
     return res.success(result);
   } catch (error) {
