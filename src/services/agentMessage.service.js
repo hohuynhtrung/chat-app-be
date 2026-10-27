@@ -388,6 +388,7 @@ class AgentMessageService {
       "- respond: trả lời người dùng; message phải chứa câu trả lời hoàn chỉnh.",
       "- readFile: đọc file; path là đường dẫn file.",
       "- writeFile: ghi file; path là đường dẫn và content là nội dung cần ghi.",
+      "- writeFile chỉ chấp nhận nội dung tối đa 1 MiB; nếu bị từ chối do vượt giới hạn, hãy báo rõ và không thử chia nhỏ để lách giới hạn.",
       "- exec: chạy lệnh ngắn phù hợp với hệ điều hành.",
       "- Không bao giờ thực thi lệnh xóa hoặc phá hoại như rm, rm -rf, rmdir, rd, del, del /f, erase, Remove-Item, format, shutdown, reboot, diskpart, mkfs, wipefs, shred, dd, hoặc các biến thể tương đương; nếu cần, hãy từ chối và giải thích ngắn gọn.",
       "- Chỉ đọc/ghi file trong thư mục dự án hoặc các thư mục được cấu hình rõ ràng qua AGENT_ALLOWED_PATHS (các đường dẫn ngăn cách bằng dấu phân tách của hệ điều hành). Không truy cập C:\\Windows, C:\\Windows\\System32, /etc, /usr hoặc các thư mục hệ thống khác; không tìm cách vượt giới hạn bằng đường dẫn ../, symlink hay exec.",

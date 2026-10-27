@@ -39,6 +39,7 @@ const MAX_OUTPUT_CHARS = 20_000; // tránh một lần đọc file/chạy lệnh
 const SEARCH_TIMEOUT_MS = 15_000;
 const MAX_SEARCH_RESULTS = 5;
 const MAX_SEARCH_CONTENT_CHARS = 2_000;
+const MAX_WRITE_FILE_BYTES = 1 * 1024 * 1024;
 const MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024;
 const CLOUDFLARE_IMAGE_TIMEOUT_MS = 60_000;
 
@@ -150,23 +151,63 @@ const resolveAllowedWritePath = async (filePath) => {
 const getDangerousCommand = (command) =>
   DANGEROUS_COMMAND_PATTERNS.some((pattern) => pattern.test(command));
 
+const logFileOperation = (operation, filePath, details = {}) => {
+  const entry = {
+    event: "agent_file_operation",
+    operation,
+    path: typeof filePath === "string" ? filePath.slice(0, 1_000) : null,
+    ...details,
+    timestamp: new Date().toISOString(),
+  };
+  const log = entry.success ? console.info : console.warn;
+  log.call(console, JSON.stringify(entry));
+};
+
 const agentTools = {
   async readFile({ path: filePath }) {
     try {
       const safePath = await resolveAllowedReadPath(filePath);
       const content = await fs.readFile(safePath, "utf8");
+      logFileOperation("read", safePath, {
+        success: true,
+        sizeBytes: Buffer.byteLength(content, "utf8"),
+      });
       return { success: true, content: truncate(content) };
     } catch (error) {
+      logFileOperation("read", filePath, {
+        success: false,
+        error: error.message,
+      });
       return { success: false, error: error.message };
     }
   },
 
   async writeFile({ path: filePath, content }) {
     try {
+      if (typeof content !== "string") {
+        throw new Error("Nội dung file phải là chuỗi.");
+      }
+
+      const sizeBytes = Buffer.byteLength(content, "utf8");
+
+      if (sizeBytes > MAX_WRITE_FILE_BYTES) {
+        throw new Error(
+          `Nội dung file vượt quá giới hạn ${MAX_WRITE_FILE_BYTES} byte.`,
+        );
+      }
+
       const safePath = await resolveAllowedWritePath(filePath);
       await fs.writeFile(safePath, content, "utf8");
+      logFileOperation("write", safePath, {
+        success: true,
+        sizeBytes,
+      });
       return { success: true, content: `File written: ${safePath}` };
     } catch (error) {
+      logFileOperation("write", filePath, {
+        success: false,
+        error: error.message,
+      });
       return { success: false, error: error.message };
     }
   },

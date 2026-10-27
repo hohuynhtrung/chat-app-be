@@ -16,7 +16,6 @@ model User {
     updatedAt         DateTime           @updatedAt
     userConversations UserConversation[]
     messages          Message[]
-    chatbotMessages   ChatbotMessage[]
     agentMessages     AgentMessage[]
     refreshTokens     RefreshToken[]
 
@@ -62,17 +61,6 @@ model Message {
     sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
     @@map("messages")
-}
-
-model ChatbotMessage {
-    id        String   @id @default(cuid())
-    userId    String
-    role      String
-    content   String   @db.Text
-    createdAt DateTime @default(now())
-    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-    @@map("chatbot_messages")
 }
 
 model AgentMessage {
