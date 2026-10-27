@@ -2,6 +2,7 @@
 .env
 
 /generated/prisma
+/generated-images
 
 # test
 /test-db.js

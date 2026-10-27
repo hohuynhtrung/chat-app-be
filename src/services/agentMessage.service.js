@@ -23,6 +23,7 @@ const ALLOWED_ACTIONS = new Set([
   "writeFile",
   "exec",
   "search_web",
+  "generate_image",
   "respond",
 ]);
 
@@ -69,6 +70,7 @@ function normalizeAgentAction(result) {
         content: null,
         command: null,
         query: null,
+        prompt: null,
         message: result.respond,
         thinking:
           typeof result.thinking === "string"
@@ -107,6 +109,7 @@ function normalizeAgentAction(result) {
     content: nullableString(source.content, "content"),
     command: nullableString(source.command, "command"),
     query: nullableString(source.query, "query"),
+    prompt: nullableString(source.prompt, "prompt"),
     message: nullableString(source.message, "message"),
     thinking: typeof source.thinking === "string" ? source.thinking.trim() : "",
   };
@@ -216,12 +219,35 @@ class AgentMessageService {
 
       const toolResult = await this._runTool(action, params);
 
+      if (action === "generate_image") {
+        const answer =
+          toolResult.success === true &&
+          typeof toolResult.markdown === "string" &&
+          toolResult.markdown.trim()
+            ? `Đây là ảnh bạn yêu cầu:\n\n${toolResult.markdown}`
+            : `Không thể tạo ảnh: ${
+                typeof toolResult.error === "string" && toolResult.error.trim()
+                  ? toolResult.error
+                  : "Dịch vụ không trả về ảnh hợp lệ."
+              }`;
+
+        await this._publishAgentEvent(user.id, "agent:complete", {
+          requestId: eventRequestId,
+        });
+
+        return this._insertMessage(user.id, {
+          role: "assistant",
+          content: answer,
+          thinking: false,
+        });
+      }
+
       // Ghi nhận action và kết quả để model quyết định bước tiếp theo.
       context.push({
         role: "assistant",
         content: JSON.stringify({
           action,
-          status: params.thinking,
+          params,
         }),
       });
 
@@ -348,9 +374,9 @@ class AgentMessageService {
       "",
       "## Định dạng đầu ra",
       "Chỉ trả về một JSON object hợp lệ, không dùng markdown hoặc code fence.",
-      'Cấu trúc bắt buộc: {"action":"respond","params":{"path":null,"content":null,"command":null,"query":null,"message":"Câu trả lời","thinking":"Mô tả ngắn bước xử lý"}}.',
+      'Cấu trúc bắt buộc: {"action":"respond","params":{"path":null,"content":null,"command":null,"query":null,"prompt":null,"message":"Câu trả lời","thinking":"Mô tả ngắn bước xử lý"}}.',
       "Luôn có action và params.",
-      "params phải chứa đủ các trường path, content, command, query, message, thinking.",
+      "params phải chứa đủ các trường path, content, command, query, prompt, message, thinking.",
       "Các trường không dùng phải là null; thinking luôn là chuỗi.",
       "",
       "## Phong cách",
@@ -367,6 +393,11 @@ class AgentMessageService {
       "- Dùng search_web khi người dùng hỏi tin thời sự, thông tin mới/có thể thay đổi, hoặc nội dung ngoài kiến thức sẵn có.",
       "- Sau khi tìm kiếm, tổng hợp câu trả lời từ kết quả; ưu tiên nguồn đáng tin cậy và đưa URL nguồn khi phù hợp.",
       "- Nếu tìm kiếm không có kết quả hoặc công cụ báo lỗi, hãy nói rõ giới hạn đó, không tự bịa thông tin.",
+      "- generate_image: Luôn chọn action này khi người dùng yêu cầu vẽ, tạo ảnh, minh họa hoặc thiết kế hình ảnh.",
+      "- Quy tắc tạo `params.prompt`: BẮT BUỘC dịch và mở rộng yêu cầu của người dùng sang TIẾNG ANH (English). Hãy mô tả sát thực tế yêu cầu người dùng (ví dụ: người dùng yêu cầu 'con mèo đang ngồi' thì prompt phải là 'a cute cat sitting, detailed, high quality'). TUYỆT ĐỐI CẤM tự ý bịa thêm các vật thể không liên quan (như xe ô tô, nhà cửa, con vật khác) nếu người dùng không yêu cầu.",
+      "- Không từ chối yêu cầu tạo ảnh chỉ vì bạn là mô hình ngôn ngữ, vì việc tạo ảnh do tool generate_image đảm nhận.",
+      "- Không tự nhận đã tạo ảnh nếu chưa gọi công cụ generate_image và nhận kết quả thành công.",
+      "- Sau khi generate_image thành công, ở lượt `respond` tiếp theo, đưa nguyên chuỗi markdown ảnh (`![...](url)`) nhận được từ tool vào `params.message` để hiển thị trong khung chat. Nếu công cụ báo lỗi, hãy báo lại cho người dùng và không khẳng định đã tạo ảnh thành công.",
       "",
       "## An toàn",
       "- Không tự ý thực hiện thao tác xóa dữ liệu hoặc ghi đè hàng loạt.",

@@ -8,7 +8,14 @@ const agentActionSchema = {
       properties: {
         action: {
           type: "string",
-          enum: ["readFile", "writeFile", "exec", "search_web", "respond"],
+          enum: [
+            "readFile",
+            "writeFile",
+            "exec",
+            "search_web",
+            "generate_image",
+            "respond",
+          ],
           description:
             "Action duy nhất agent sẽ thực hiện trong lượt hiện tại.",
         },
@@ -31,6 +38,11 @@ const agentActionSchema = {
               type: ["string", "null"],
               description: "Từ khóa tìm kiếm khi dùng action search_web.",
             },
+            prompt: {
+              type: ["string", "null"],
+              description:
+                "Mô tả chi tiết bằng tiếng Anh/tiếng Việt về hình ảnh cần tạo. Được sử dụng bởi: generate_image",
+            },
             message: {
               type: ["string", "null"],
               description:
@@ -47,6 +59,7 @@ const agentActionSchema = {
             "content",
             "command",
             "query",
+            "prompt",
             "message",
             "thinking",
           ],
