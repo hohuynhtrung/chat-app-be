@@ -19,6 +19,7 @@ const chat = async (req, res, next) => {
       req.user,
       input,
       req.body?.requestId,
+      req.body?.conversationId,
     );
 
     return res.success(result);
@@ -29,9 +30,10 @@ const chat = async (req, res, next) => {
 
 const getMessages = async (req, res, next) => {
   try {
-    const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 50);
-
-    const messages = await agentMessageService.getMessages(req.user, limit);
+    const messages = await agentMessageService.getMessages(
+      req.user,
+      req.query.conversationId,
+    );
 
     return res.success(messages);
   } catch (error) {

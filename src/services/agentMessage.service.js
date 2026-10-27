@@ -3,6 +3,7 @@ const prisma = require("../libs/prisma");
 const aiService = require("./ai.service");
 const agentActionSchema = require("../jsonSchema/agentActionSchema");
 const agentTools = require("../utils/agentTools");
+const agentConversationService = require("./agentConversation.service");
 const { getOsInfo } = require("../utils/osInfo");
 const pusher = require("../libs/pusher");
 
@@ -129,22 +130,8 @@ class AgentMessageService {
    * Lấy lịch sử hội thoại hiển thị cho người dùng.
    * Các bản ghi thinking không được đưa ra giao diện.
    */
-  async getMessages(user, limit = CHAT_HISTORY_LIMIT) {
-    const safeLimit = Math.min(
-      Math.max(Number.parseInt(limit, 10) || CHAT_HISTORY_LIMIT, 1),
-      CHAT_HISTORY_LIMIT,
-    );
-
-    const messages = await prisma.agentMessage.findMany({
-      where: {
-        userId: user.id,
-        thinking: false,
-      },
-      orderBy: NEWEST_FIRST,
-      take: safeLimit,
-    });
-
-    return messages.reverse();
+  async getMessages(user, conversationId) {
+    return agentConversationService.getMessages(user.id, conversationId);
   }
 
   /**
@@ -154,7 +141,7 @@ class AgentMessageService {
    * 3. Lặp qua các action.
    * 4. Lưu và trả về câu trả lời cuối cùng.
    */
-  async chat(user, input, requestId) {
+  async chat(user, input, requestId, conversationId) {
     if (!user?.id) {
       throw new Error("Không xác định được người dùng.");
     }
@@ -163,6 +150,11 @@ class AgentMessageService {
       throw new Error("Nội dung tin nhắn không được để trống.");
     }
 
+    const conversation =
+      await agentConversationService.assertOwnedConversation(
+        user.id,
+        conversationId,
+      );
     const normalizedInput = input.trim();
     const eventRequestId =
       typeof requestId === "string" && requestId.trim().length <= 128
@@ -174,7 +166,7 @@ class AgentMessageService {
         role: "system",
         content: this._systemPrompt(),
       },
-      ...(await this._loadChatHistory(user.id)),
+      ...(await this._loadChatHistory(user.id, conversationId)),
     ];
 
     const userMessage = {
@@ -184,7 +176,18 @@ class AgentMessageService {
 
     context.push(userMessage);
 
-    await this._insertMessage(user.id, userMessage);
+    await this._insertMessage(user.id, userMessage, conversationId);
+
+    const now = new Date();
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: {
+        lastMessageAt: now,
+        ...(conversation.name === "Cuộc trò chuyện mới"
+          ? { name: normalizedInput.slice(0, 80) }
+          : {}),
+      },
+    });
 
     for (let step = 1; step <= MAX_AGENT_STEPS; step += 1) {
       const { action, params } = await this._think(context);
@@ -194,7 +197,7 @@ class AgentMessageService {
           role: "assistant",
           content: params.thinking,
           thinking: true,
-        });
+        }, conversationId);
 
         await this._publishAgentEvent(user.id, "agent:thinking", {
           requestId: eventRequestId,
@@ -214,7 +217,7 @@ class AgentMessageService {
           role: "assistant",
           content: answer,
           thinking: false,
-        });
+        }, conversationId);
       }
 
       const toolResult = await this._runTool(action, params);
@@ -239,7 +242,7 @@ class AgentMessageService {
           role: "assistant",
           content: answer,
           thinking: false,
-        });
+        }, conversationId);
       }
 
       // Ghi nhận action và kết quả để model quyết định bước tiếp theo.
@@ -265,7 +268,7 @@ class AgentMessageService {
       role: "assistant",
       content: MAX_STEPS_EXCEEDED_MESSAGE,
       thinking: false,
-    });
+    }, conversationId);
   }
 
   async _publishAgentEvent(userId, eventName, payload) {
@@ -313,10 +316,11 @@ class AgentMessageService {
    * Chỉ lấy lịch sử hội thoại thật.
    * Không đưa bản ghi thinking vào lịch sử gửi cho model.
    */
-  async _loadChatHistory(userId) {
+  async _loadChatHistory(userId, conversationId) {
     const rows = await prisma.agentMessage.findMany({
       where: {
         userId,
+        conversationId,
         thinking: false,
       },
       orderBy: NEWEST_FIRST,
@@ -329,10 +333,11 @@ class AgentMessageService {
     }));
   }
 
-  async _insertMessage(userId, data) {
+  async _insertMessage(userId, data, conversationId) {
     return prisma.agentMessage.create({
       data: {
         userId,
+        conversationId,
         thinking: false,
         ...data,
       },

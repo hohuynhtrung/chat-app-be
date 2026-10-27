@@ -25,6 +25,7 @@ model User {
 enum ConversationType {
     dm
     group
+    agent
 }
 
 model Conversation {
@@ -34,6 +35,7 @@ model Conversation {
     updatedAt         DateTime           @updatedAt
     userConversations UserConversation[]
     messages          Message[]
+    agentMessages     AgentMessage[]
     name              String?
     dmKey             String?            @unique
     lastMessageAt     DateTime           @default(now())
@@ -64,14 +66,17 @@ model Message {
 }
 
 model AgentMessage {
-    id        String   @id @default(cuid())
-    userId    String
-    role      String
-    thinking  Boolean  @default(false)
-    content   String   @db.Text
-    createdAt DateTime @default(now())
-    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    id             String       @id @default(cuid())
+    userId         String
+    conversationId String
+    role           String
+    thinking       Boolean      @default(false)
+    content        String       @db.Text
+    createdAt      DateTime     @default(now())
+    user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+    conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
+    @@index([userId, conversationId, createdAt])
     @@map("agent_messages")
 }
 

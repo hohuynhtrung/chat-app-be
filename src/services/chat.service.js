@@ -27,7 +27,10 @@ class ChatService {
 
   async list(userId) {
     const rows = await prisma.conversation.findMany({
-      where: { userConversations: { some: { userId } } },
+      where: {
+        type: { in: ["dm", "group"] },
+        userConversations: { some: { userId } },
+      },
       include: memberInclude,
       orderBy: { lastMessageAt: "desc" },
     });
