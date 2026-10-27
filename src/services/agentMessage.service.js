@@ -150,11 +150,10 @@ class AgentMessageService {
       throw new Error("Nội dung tin nhắn không được để trống.");
     }
 
-    const conversation =
-      await agentConversationService.assertOwnedConversation(
-        user.id,
-        conversationId,
-      );
+    const conversation = await agentConversationService.assertOwnedConversation(
+      user.id,
+      conversationId,
+    );
     const normalizedInput = input.trim();
     const eventRequestId =
       typeof requestId === "string" && requestId.trim().length <= 128
@@ -193,11 +192,15 @@ class AgentMessageService {
       const { action, params } = await this._think(context);
 
       if (params.thinking) {
-        await this._insertMessage(user.id, {
-          role: "assistant",
-          content: params.thinking,
-          thinking: true,
-        }, conversationId);
+        await this._insertMessage(
+          user.id,
+          {
+            role: "assistant",
+            content: params.thinking,
+            thinking: true,
+          },
+          conversationId,
+        );
 
         await this._publishAgentEvent(user.id, "agent:thinking", {
           requestId: eventRequestId,
@@ -213,14 +216,41 @@ class AgentMessageService {
           requestId: eventRequestId,
         });
 
-        return this._insertMessage(user.id, {
-          role: "assistant",
-          content: answer,
-          thinking: false,
-        }, conversationId);
+        return this._insertMessage(
+          user.id,
+          {
+            role: "assistant",
+            content: answer,
+            thinking: false,
+          },
+          conversationId,
+        );
+      }
+
+      const isFileAction = action === "readFile" || action === "writeFile";
+
+      if (isFileAction) {
+        await this._publishAgentEvent(user.id, "agent:file-operation", {
+          requestId: eventRequestId,
+          step,
+          action,
+          path: params.path,
+          status: "started",
+        });
       }
 
       const toolResult = await this._runTool(action, params);
+
+      if (isFileAction) {
+        await this._publishAgentEvent(user.id, "agent:file-operation", {
+          requestId: eventRequestId,
+          step,
+          action,
+          path: params.path,
+          status: "completed",
+          success: toolResult.success === true,
+        });
+      }
 
       if (action === "generate_image") {
         const answer =
@@ -238,11 +268,15 @@ class AgentMessageService {
           requestId: eventRequestId,
         });
 
-        return this._insertMessage(user.id, {
-          role: "assistant",
-          content: answer,
-          thinking: false,
-        }, conversationId);
+        return this._insertMessage(
+          user.id,
+          {
+            role: "assistant",
+            content: answer,
+            thinking: false,
+          },
+          conversationId,
+        );
       }
 
       // Ghi nhận action và kết quả để model quyết định bước tiếp theo.
@@ -264,11 +298,15 @@ class AgentMessageService {
       requestId: eventRequestId,
     });
 
-    return this._insertMessage(user.id, {
-      role: "assistant",
-      content: MAX_STEPS_EXCEEDED_MESSAGE,
-      thinking: false,
-    }, conversationId);
+    return this._insertMessage(
+      user.id,
+      {
+        role: "assistant",
+        content: MAX_STEPS_EXCEEDED_MESSAGE,
+        thinking: false,
+      },
+      conversationId,
+    );
   }
 
   async _publishAgentEvent(userId, eventName, payload) {
@@ -392,6 +430,7 @@ class AgentMessageService {
       "## Action",
       "- respond: trả lời người dùng; message phải chứa câu trả lời hoàn chỉnh.",
       "- readFile: đọc file; path là đường dẫn file.",
+      "- TUYỆT ĐỐI KHÔNG đọc các file nhạy cảm chứa biến môi trường hoặc khóa bảo mật như .env, .env.local, id_rsa.",
       "- writeFile: ghi file; path là đường dẫn và content là nội dung cần ghi.",
       "- writeFile chỉ chấp nhận nội dung tối đa 1 MiB; nếu bị từ chối do vượt giới hạn, hãy báo rõ và không thử chia nhỏ để lách giới hạn.",
       "- exec: chạy lệnh ngắn phù hợp với hệ điều hành.",
