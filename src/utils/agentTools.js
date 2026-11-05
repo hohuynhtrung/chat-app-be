@@ -34,8 +34,8 @@ const CLOUDFLARE_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell";
 const CLOUDFLARE_IMAGE_API_URL =
   "https://api.cloudflare.com/client/v4/accounts";
 const GENERATED_IMAGES_DIR = path.join(__dirname, "../../generated-images");
-const EXEC_TIMEOUT_MS = 30_000; // prompt hứa "mỗi lệnh xong trong ~30s" thì code phải đảm bảo điều đó
-const MAX_OUTPUT_CHARS = 20_000; // tránh một lần đọc file/chạy lệnh làm tràn ngữ cảnh của AI
+const EXEC_TIMEOUT_MS = 30_000;
+const MAX_OUTPUT_CHARS = 20_000;
 const SEARCH_TIMEOUT_MS = 15_000;
 const MAX_SEARCH_RESULTS = 5;
 const MAX_SEARCH_CONTENT_CHARS = 2_000;
